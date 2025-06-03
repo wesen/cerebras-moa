@@ -11,8 +11,107 @@ import copy
 from moa.agent import MOAgent
 from moa.agent.prompts import SYSTEM_PROMPT, REFERENCE_SYSTEM_PROMPT
 
-# Valid models for Cerebras
-valid_model_names = ["llama-3.3-70b", "llama3.1-8b", "llama-4-scout-17b-16e-instruct", "qwen-3-32b"]
+# Valid models for Cerebras with their context limits
+MODEL_LIMITS = {
+    "llama-3.3-70b": 8192,
+    "llama3.1-8b": 8192, 
+    "llama-4-scout-17b-16e-instruct": 8192,
+    "qwen-3-32b": 16384
+}
+
+valid_model_names = list(MODEL_LIMITS.keys())
+
+def estimate_tokens(text):
+    """Rough token estimation (1 token ≈ 0.75 words)"""
+    if not text:
+        return 0
+    return int(len(text.split()) * 1.3)
+
+def get_model_limit(model_name):
+    """Get context limit for a model"""
+    return MODEL_LIMITS.get(model_name, 8192)
+
+def calculate_total_context_usage(ai_config, user_prompt):
+    """Calculate estimated token usage for the entire MOA execution"""
+    # Base user prompt
+    user_tokens = estimate_tokens(user_prompt)
+    
+    # System prompts for agents  
+    agent_prompt_tokens = sum(estimate_tokens(agent['prompt']) for agent in ai_config['layer_agents'])
+    
+    # Main system prompt
+    main_prompt_tokens = estimate_tokens(ai_config.get('system_prompt', ''))
+    
+    # Estimate agent output accumulation over cycles - more realistic calculation
+    num_agents = len(ai_config['layer_agents'])
+    cycles = ai_config['cycles']
+    
+    # More realistic estimate based on actual MOA behavior:
+    # - Each agent outputs ~300-800 tokens per cycle depending on task complexity
+    # - Context grows as: cycle1_outputs + cycle2_outputs + ... 
+    # - But there's also MOA system prompt overhead (~500 tokens)
+    
+    avg_agent_output_per_cycle = 500  # Conservative estimate
+    moa_system_overhead = 600  # MOA adds its own system prompts
+    
+    accumulated_context = moa_system_overhead
+    for cycle in range(1, cycles + 1):
+        cycle_outputs = avg_agent_output_per_cycle * num_agents
+        accumulated_context += cycle_outputs
+    
+    # Final main model call gets: user + main_prompt + all_accumulated_context
+    total_estimated = user_tokens + main_prompt_tokens + accumulated_context
+    
+    return {
+        'user_tokens': user_tokens,
+        'agent_prompt_tokens': agent_prompt_tokens, 
+        'main_prompt_tokens': main_prompt_tokens,
+        'accumulated_context': accumulated_context,
+        'total_estimated': total_estimated,
+        'breakdown': f"User: {user_tokens} + Main: {main_prompt_tokens} + Accumulated: {accumulated_context} = {total_estimated}"
+    }
+
+def check_context_safety(ai_config, user_prompt):
+    """Check if configuration is safe from context overflow"""
+    if not ai_config.get('layer_agents'):
+        return True, "No agents configured"
+        
+    usage = calculate_total_context_usage(ai_config, user_prompt)
+    main_model_limit = get_model_limit(ai_config['main_model'])
+    
+    # Check main model (gets the full accumulated context)
+    # Use 70% safety margin to ensure we have room for completion
+    safety_threshold = main_model_limit * 0.7
+    
+    if usage['total_estimated'] > safety_threshold:
+        overflow_amount = usage['total_estimated'] - safety_threshold
+        return False, f"Estimated {usage['total_estimated']:,} tokens exceeds safe limit of {safety_threshold:,} tokens (70% of {main_model_limit:,}) by {overflow_amount:,} tokens"
+    
+    # Check if we have enough room for meaningful completion (at least 512 tokens)
+    completion_space = main_model_limit - usage['total_estimated']
+    if completion_space < 512:
+        return False, f"Only {completion_space} tokens available for completion (need at least 512)"
+    
+    return True, f"Safe: ~{usage['total_estimated']:,} tokens, {completion_space:,} tokens available for completion"
+
+def suggest_optimizations(ai_config, user_prompt):
+    """Suggest optimizations to reduce context usage"""
+    suggestions = []
+    usage = calculate_total_context_usage(ai_config, user_prompt)
+    
+    if usage['total_estimated'] > 15000:
+        suggestions.append("⚡ **Reduce cycles**: Try 2 cycles instead of 3+ to halve context growth")
+    
+    if len(ai_config['layer_agents']) > 2:
+        suggestions.append("🤖 **Fewer agents**: Consider 2 specialized agents instead of 3+")
+    
+    if usage['agent_prompt_tokens'] > 1000:
+        suggestions.append("📝 **Shorter prompts**: Keep agent prompts under 100 words each")
+    
+    if usage['user_tokens'] > 2000:
+        suggestions.append("✂️ **Shorter input**: Consider reducing the user prompt length")
+    
+    return suggestions
 
 def init_competition_session():
     """Initialize competition system in session state"""
@@ -29,28 +128,16 @@ def init_competition_session():
     # Initialize AI configuration defaults with auto-save
     if 'ai_config' not in st.session_state:
         st.session_state.ai_config = {
-            'main_model': 'llama-3.3-70b',
-            'main_temperature': 0.1,
-            'cycles': 3,
-            'system_prompt': 'You are an expert Python programmer. Fix all bugs in the given function while maintaining its original structure and purpose. Focus on: 1) Division by zero errors, 2) Missing key handling, 3) Wrong calculations, 4) Sorting issues, 5) Edge cases. {helper_response}',
+            'main_model': 'llama3.1-8b',
+            'main_temperature': 0.7,
+            'cycles': 1,
+            'system_prompt': 'You are a helpful assistant. Please implement the requested function. {helper_response}',
             'layer_agents': [
                 {
-                    'name': 'bug_finder',
-                    'model': 'llama-4-scout-17b-16e-instruct',
-                    'temperature': 0.3,
-                    'prompt': 'Identify all bugs and logical errors in the code. Focus on runtime errors and incorrect calculations. {helper_response}'
-                },
-                {
-                    'name': 'edge_case_handler',
-                    'model': 'qwen-3-32b',
-                    'temperature': 0.7,
-                    'prompt': 'Consider edge cases and error conditions. Think about empty inputs, missing keys, and boundary conditions. {helper_response}'
-                },
-                {
-                    'name': 'optimizer',
+                    'name': 'assistant',
                     'model': 'llama3.1-8b',
-                    'temperature': 0.1,
-                    'prompt': 'Optimize the code for performance and security. Use efficient algorithms and add proper input validation. {helper_response}'
+                    'temperature': 0.5,
+                    'prompt': 'Help with the coding task. {helper_response}'
                 }
             ]
         }
@@ -85,39 +172,101 @@ def render_competition_page():
     # Custom CSS for better styling
     st.markdown("""
     <style>
-        .config-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem;
-            border-radius: 10px;
-            margin: 0.5rem 0;
-        }
-        .score-card {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 1rem;
-            border-radius: 10px;
-            text-align: center;
-        }
-        .generation-card {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-        }
-        .stAlert > div {
-            padding: 1rem;
-            border-radius: 8px;
-        }
+    /* Import container styling */
+    .block-container {
+        max-width: 100%;
+        padding-top: 2rem;
+    }
+    
+    /* Button improvements - Updated selectors for Streamlit 1.40+ */
+    .stButton > button, 
+    div[data-testid="stButton"] > button {
+        border-radius: 8px !important;
+        border: 1px solid #e0e0e0 !important;
+        padding: 0.5rem 1rem !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+    }
+    
+    /* Primary buttons */
+    .stButton > button[kind="primary"],
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background: linear-gradient(90deg, #ff6b6b, #ee5a24) !important;
+        border: none !important;
+        color: white !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    
+    .stButton > button[kind="primary"]:hover,
+    div[data-testid="stButton"] > button[kind="primary"]:hover {
+        background: linear-gradient(90deg, #ee5a24, #d63031) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* Secondary buttons */
+    .stButton > button[kind="secondary"],
+    div[data-testid="stButton"] > button[kind="secondary"] {
+        background: linear-gradient(90deg, #74b9ff, #0984e3) !important;
+        border: none !important;
+        color: white !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    
+    .stButton > button[kind="secondary"]:hover,
+    div[data-testid="stButton"] > button[kind="secondary"]:hover {
+        background: linear-gradient(90deg, #0984e3, #2d3436) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* File uploader styling */
+    .stFileUploader label,
+    div[data-testid="stFileUploader"] label {
+        font-weight: 500 !important;
+        color: #2d3436 !important;
+    }
+    
+    /* File uploader button */
+    .stFileUploader button,
+    div[data-testid="stFileUploader"] button {
+        background: #f8f9fa !important;
+        border: 2px dashed #dee2e6 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+    }
+    
+    /* Success/error messages */
+    .stAlert,
+    div[data-testid="stAlert"] {
+        border-radius: 8px !important;
+        border-left: 4px solid !important;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader,
+    div[data-testid="stExpander"] > div > div {
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Force button width */
+    .row-widget.stButton {
+        width: 100% !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
     # Header
-    st.markdown("""
+    # Check if qwen is the orchestrator for title modification
+    thinking_disabled = st.session_state.ai_config.get('main_model') == 'qwen-3-32b'
+    thinking_suffix = " (thinking disabled)" if thinking_disabled else ""
+    
+    st.markdown(f"""
     <div style='text-align: center; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); 
                 color: white; padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-        <h1>🎮 AI Configuration Challenge</h1>
+        <h1>🎮 AI Configuration Challenge{thinking_suffix}</h1>
         <h3>Master Prompt Engineering & Multi-Agent Systems</h3>
         <p>Configure AI agents to generate perfect code • Maximum Score: 120 points • Be the AI whisperer! 🚀</p>
     </div>
@@ -259,43 +408,50 @@ def render_ai_config_tab():
     st.markdown("Set up the AI agents, models, and prompts to generate the perfect solution!")
     
     # Configuration management section
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        config_name = st.text_input(
-            "🎓 Configuration Name", 
-            placeholder="Enter a name for this AI configuration",
-            help="Give your AI setup a memorable name",
-            key="config_name"
-        )
-    
-    with col2:
         # Download configuration button
         config_json = export_config_as_json()
         st.download_button(
             label="💾 Export Config",
             data=config_json,
-            file_name=f"ai_config_{config_name or 'unnamed'}.json",
+            file_name="ai_config.json",
             mime="application/json",
             help="Download your current AI configuration"
         )
     
-    with col3:
+    with col2:
         # Import configuration
         uploaded_file = st.file_uploader(
-            "📤 Import Configuration", 
+            "📤 Upload Config", 
             type=['json'],
             help="Upload a previously saved AI configuration",
-            label_visibility="collapsed"
+            label_visibility="visible"
         )
         
-        if uploaded_file is not None:
-            try:
-                config_data = json.load(uploaded_file)
-                import_config_from_json(json.dumps(config_data))
-                st.success("✅ Configuration imported successfully!")
-            except Exception as e:
-                st.error(f"❌ Import failed: {str(e)}")
+        # Process uploaded file when button is clicked
+        if st.button("📤 Import Config", 
+                    type="secondary", 
+                    use_container_width=True,
+                    help="Click to import configuration from JSON file"):
+            if uploaded_file is not None:
+                try:
+                    # Reset file pointer to beginning
+                    uploaded_file.seek(0)
+                    config_data = json.load(uploaded_file)
+                    success, message = import_config_from_json(json.dumps(config_data))
+                    if success:
+                        st.success(f"✅ {message}")
+                        # Clear the uploaded file to prevent re-processing
+                        st.session_state.pop('uploaded_file', None)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Import failed: {message}")
+                except Exception as e:
+                    st.error(f"❌ Import failed: {str(e)}")
+            else:
+                st.warning("Please upload a JSON file first")
     
     st.divider()
     
@@ -342,6 +498,7 @@ def render_ai_config_tab():
         if model != st.session_state.ai_config['main_model']:
             st.session_state.ai_config['main_model'] = model
             save_config_to_session()
+            st.rerun()  # Force page refresh to update title
     
     with col3:
         # Ensure cycles is an integer
@@ -383,22 +540,31 @@ def render_ai_config_tab():
     # Quick preset buttons for system prompt
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🎯 Bug-Focused Preset", help="Optimize for finding and fixing bugs"):
-            preset_prompt = "You are an expert Python programmer specialized in bug detection and fixing. Analyze the requirements carefully and implement a robust solution. Focus on: 1) Division by zero errors, 2) Missing key handling, 3) Wrong calculations, 4) Sorting issues, 5) Edge cases. {helper_response}"
+        if st.button("🎯 Bug-Focused Preset", 
+                    type="secondary",
+                    use_container_width=True,
+                    help="Optimize for finding and fixing bugs"):
+            preset_prompt = "You are an expert Python programmer specialized in bug detection and fixing. Analyze the requirements carefully and implement a robust solution. Focus on: 1) Division by zero errors, 2) Missing key handling, 3) Wrong calculations, 4) Sorting issues, 5) Edge cases. Return ONLY the function code without explanations or thinking process. {helper_response}"
             st.session_state.ai_config['system_prompt'] = preset_prompt
             save_config_to_session()
             st.rerun()
     
     with col2:
-        if st.button("🚀 Performance Preset", help="Optimize for performance and efficiency"):
-            preset_prompt = "You are a performance-focused Python expert. Create efficient, optimized code that handles all edge cases. Prioritize: 1) Algorithmic efficiency, 2) Memory optimization, 3) Robust error handling, 4) Clean, maintainable code. {helper_response}"
+        if st.button("🚀 Performance Preset", 
+                    type="secondary",
+                    use_container_width=True,
+                    help="Optimize for performance and efficiency"):
+            preset_prompt = "You are a performance-focused Python expert. Create efficient, optimized code that handles all edge cases. Prioritize: 1) Algorithmic efficiency, 2) Memory optimization, 3) Robust error handling, 4) Clean, maintainable code. Return ONLY the function code without explanations or thinking process. {helper_response}"
             st.session_state.ai_config['system_prompt'] = preset_prompt
             save_config_to_session()
             st.rerun()
     
     with col3:
-        if st.button("🧠 Comprehensive Preset", help="Balanced approach for overall quality"):
-            preset_prompt = "You are an expert Python programmer. Create a comprehensive solution that excels in all areas: bug-free implementation, edge case handling, performance optimization, and code quality. Synthesize the analysis from helper agents to produce the perfect solution. {helper_response}"
+        if st.button("🧠 Comprehensive Preset", 
+                    type="secondary",
+                    use_container_width=True,
+                    help="Balanced approach for overall quality"):
+            preset_prompt = "You are an expert Python programmer. Create a comprehensive solution that excels in all areas: bug-free implementation, edge case handling, performance optimization, and code quality. Synthesize the analysis from helper agents to produce the perfect solution. Return ONLY the function code without explanations or thinking process. {helper_response}"
             st.session_state.ai_config['system_prompt'] = preset_prompt
             save_config_to_session()
             st.rerun()
@@ -409,7 +575,11 @@ def render_ai_config_tab():
     # Add new agent button
     col1, col2 = st.columns([1, 3])
     with col1:
-        if st.button("➕ Add Agent", key="add_agent", use_container_width=True):
+        if st.button("➕ Add Agent", 
+                    key="add_agent", 
+                    type="secondary",
+                    use_container_width=True,
+                    help="Add a new layer agent to your configuration"):
             new_agent = {
                 'name': f'Agent {len(st.session_state.ai_config["layer_agents"]) + 1}',
                 'model': 'llama-3.3-70b',
@@ -422,9 +592,17 @@ def render_ai_config_tab():
     
     with col2:
         if len(st.session_state.ai_config['layer_agents']) > 0:
-            st.info(f"💡 **{len(st.session_state.ai_config['layer_agents'])} agents configured** • Execution order: top to bottom • Edit each agent below")
+            st.info(f"💡 **{len(st.session_state.ai_config['layer_agents'])} agents configured** • Edit each agent below")
         else:
-            st.info("*No agents configured - add one to get started!*")
+            st.info("""
+            🚀 **Get Started:**
+            1. Click **"Add Agent"** to create your first AI agent
+            2. Configure its model, temperature, and specialized prompt
+            3. Add more agents with different specializations  
+            4. Test your configuration with code generation!
+            
+            💡 **Pro Tip:** Start with a Bug Hunter, then add an Edge Case Expert and Performance Optimizer
+            """)
     
     # Individual agent editors
     if len(st.session_state.ai_config['layer_agents']) > 0:
@@ -432,7 +610,7 @@ def render_ai_config_tab():
         
         for i, agent in enumerate(st.session_state.ai_config['layer_agents']):
             # Agent expander with summary info
-            agent_summary = f"#{i+1}: {agent['name']} • {agent['model']} • temp={agent['temperature']:.2f}"
+            agent_summary = f"{agent['name']} • {agent['model']} • temp={agent['temperature']:.2f}"
             
             with st.expander(f"🤖 {agent_summary}", expanded=(i == 0)):  # First agent expanded by default
                 
@@ -488,9 +666,6 @@ def render_ai_config_tab():
                     if temperature != agent['temperature']:
                         agent['temperature'] = temperature
                         save_config_to_session()
-                    
-                    # Position indicator
-                    st.metric("Execution Position", f"#{i+1}")
                 
                 # Prompt configuration
                 prompt = st.text_area(
@@ -532,28 +707,10 @@ def render_ai_config_tab():
                     st.markdown("**Cycle 1 (no previous context):**")
                     st.code(f"System: {cycle1_prompt}\nUser: [Your input prompt]", language='text')
                     
-                    sample_helper = f"[Previous outputs from agents #1-{i} would appear here...]"
-                    cycle2_prompt = agent['prompt'].format(helper_response=sample_helper)
+                    cycle2_prompt = agent['prompt'].format(helper_response="[Previous cycle outputs would be here...]")
                     st.markdown("**Cycle 2+ (with context):**")
                     st.code(f"System: {cycle2_prompt}\nUser: [Your input prompt]", language='text')
         
-        # Execution summary
-        st.markdown("---")
-        st.markdown("### 📋 Execution Summary")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**🔄 Agent Execution Order:**")
-            for i, agent in enumerate(st.session_state.ai_config['layer_agents']):
-                st.markdown(f"**{i+1}.** {agent['name']} ({agent['model']})")
-        
-        with col2:
-            st.markdown("**⚙️ System Configuration:**")
-            st.markdown(f"• **Total Agents:** {len(st.session_state.ai_config['layer_agents'])}")
-            st.markdown(f"• **Cycles:** {st.session_state.ai_config['cycles']}")
-            st.markdown(f"• **Main Model:** {st.session_state.ai_config['main_model']}")
-            st.markdown(f"• **Total Executions:** {len(st.session_state.ai_config['layer_agents']) * st.session_state.ai_config['cycles']} agent calls")
-    
     else:
         # No agents configured
         st.info("""
@@ -648,24 +805,98 @@ Return the complete function implementation."""
         st.info("💡 **Test your configuration:** Try different prompts to see how your AI agents respond to various challenges!")
     
     with col2:
-        if st.button("⚡ Generate Code", type="primary", use_container_width=True):
-            if not config_name:
-                st.error("❌ Please enter a configuration name first!")
+        # Check context safety before showing generate button
+        user_prompt = st.session_state.get('custom_prompt', default_prompt)
+        is_safe, safety_message = check_context_safety(st.session_state.ai_config, user_prompt)
+        usage = calculate_total_context_usage(st.session_state.ai_config, user_prompt)
+        
+        # Show context usage info
+        if len(st.session_state.ai_config['layer_agents']) > 0:
+            # Context usage metric above the button
+            main_limit = get_model_limit(st.session_state.ai_config['main_model'])
+            usage_pct = (usage['total_estimated'] / main_limit) * 100
+            
+            if usage_pct > 80:
+                st.error(f"🚨 Context: {usage['total_estimated']:,} / {main_limit:,} tokens ({usage_pct:.0f}%)")
+            elif usage_pct > 60:
+                st.warning(f"⚠️ Context: {usage['total_estimated']:,} / {main_limit:,} tokens ({usage_pct:.0f}%)")
+            else:
+                st.success(f"✅ Context: {usage['total_estimated']:,} / {main_limit:,} tokens ({usage_pct:.0f}%)")
+        
+        if st.button("⚡ Generate Code", type="primary", use_container_width=True, disabled=not is_safe):
+            if not is_safe:
+                st.error(f"❌ {safety_message}")
+                suggestions = suggest_optimizations(st.session_state.ai_config, user_prompt)
+                if suggestions:
+                    st.markdown("**💡 Try these optimizations:**")
+                    for suggestion in suggestions:
+                        st.markdown(f"- {suggestion}")
             else:
                 # Use the custom prompt from session state
-                user_prompt = st.session_state.get('custom_prompt', default_prompt)
                 with st.spinner("🤖 AI system generating solution..."):
                     try:
                         generated_code = generate_code_with_ai(st.session_state.ai_config, user_prompt)
                         if generated_code:
                             st.session_state.generated_code = generated_code
-                            st.session_state.last_config_name = config_name
                             st.session_state.last_used_prompt = user_prompt  # Store the prompt used
                             st.success("✅ Code generated successfully!")
                         else:
                             st.error("❌ Code generation failed. Please check your configuration.")
                     except Exception as e:
                         st.error(f"❌ Error generating code: {str(e)}")
+    
+    # Context overflow warning section
+    if len(st.session_state.ai_config['layer_agents']) > 0:
+        if not is_safe:
+            st.markdown("---")
+            st.error("🚨 **Context Overflow Risk Detected**")
+            st.markdown(f"**Issue:** {safety_message}")
+            
+            with st.expander("📊 Detailed Token Usage Breakdown", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("User Prompt", f"{usage['user_tokens']:,} tokens")
+                    st.metric("Agent Prompts", f"{usage['agent_prompt_tokens']:,} tokens") 
+                    st.metric("Main Prompt", f"{usage['main_prompt_tokens']:,} tokens")
+                
+                with col2:
+                    st.metric("Accumulated Context", f"{usage['accumulated_context']:,} tokens")
+                    st.metric("**Total Estimated**", f"**{usage['total_estimated']:,} tokens**")
+                    main_limit = get_model_limit(st.session_state.ai_config['main_model'])
+                    st.metric("Main Model Limit", f"{main_limit:,} tokens")
+                
+                st.markdown("**💡 Quick Fixes:**")
+                suggestions = suggest_optimizations(st.session_state.ai_config, user_prompt)
+                for suggestion in suggestions:
+                    st.markdown(f"- {suggestion}")
+                
+                # Quick fix buttons
+                st.markdown("**⚡ One-Click Fixes:**")
+                fix_col1, fix_col2 = st.columns(2)
+                
+                with fix_col1:
+                    if st.session_state.ai_config['cycles'] > 2:
+                        if st.button("⚡ Reduce to 2 Cycles", help="Reduce cycles to 2 to halve context growth"):
+                            st.session_state.ai_config['cycles'] = 2
+                            save_config_to_session()
+                            st.rerun()
+                
+                with fix_col2:
+                    if len(st.session_state.ai_config['layer_agents']) > 2:
+                        if st.button("🤖 Remove Last Agent", help="Remove the last agent to reduce context usage"):
+                            st.session_state.ai_config['layer_agents'].pop()
+                            save_config_to_session()
+                            st.rerun()
+            
+            st.info("🎯 **Fix the warnings above to enable code generation**")
+        
+        elif usage['total_estimated'] > 10000:  # Show optimization tips even when safe
+            with st.expander("⚡ Performance Optimization Tips", expanded=False):
+                st.markdown(f"**Current estimated usage:** {usage['total_estimated']:,} tokens")
+                st.markdown("**Your configuration is safe, but here are some optimization tips:**")
+                suggestions = suggest_optimizations(st.session_state.ai_config, user_prompt)
+                for suggestion in suggestions:
+                    st.markdown(f"- {suggestion}")
 
     # NEW SECTION: Show exactly what gets sent to the models
     st.divider()
@@ -764,21 +995,48 @@ Responses from models:
         
         # Token limit warning
         st.markdown("#### ⚠️ Context Length Management")
-        st.warning("""
-        **🚨 Token Limit:** Cerebras models have a ~16,382 token limit
         
-        **What uses tokens:**
-        - User input: ~1,500 tokens
-        - System prompts: ~100-500 tokens each
-        - Helper response (grows each cycle): Can reach 10,000+ tokens
-        - Agent outputs get accumulated and passed to next cycle
+        # Calculate actual usage for current config
+        current_usage = calculate_total_context_usage(st.session_state.ai_config, generation_prompt)
+        main_limit = get_model_limit(st.session_state.ai_config['main_model'])
+        usage_pct = (current_usage['total_estimated'] / main_limit) * 100
+        
+        if usage_pct > 80:
+            warning_color = "error"
+            warning_icon = "🚨"
+        elif usage_pct > 60:
+            warning_color = "warning" 
+            warning_icon = "⚠️"
+        else:
+            warning_color = "info"
+            warning_icon = "✅"
+            
+        getattr(st, warning_color)(f"""
+        **{warning_icon} Current Configuration Analysis:**
+        - **Estimated Usage:** {current_usage['total_estimated']:,} tokens ({usage_pct:.0f}% of {main_limit:,} limit)
+        - **Model Limits:** qwen-3-32b (16k), llama models (8k)
+        - **Breakdown:** {current_usage['breakdown']}
+        
+        **Context Growth Pattern:**
+        - User input: ~{current_usage['user_tokens']:,} tokens (fixed)
+        - System prompts: ~{current_usage['agent_prompt_tokens'] + current_usage['main_prompt_tokens']:,} tokens (fixed)
+        - **Agent outputs accumulate:** Cycle 1 → Cycle 2 → Cycle 3 (exponential growth!)
+        - Final main model gets ALL accumulated context: ~{current_usage['accumulated_context']:,} tokens
         
         **💡 Optimization Tips:**
-        - Use shorter, more focused agent prompts
-        - Reduce number of cycles if hitting limits
-        - Keep system prompts concise but specific
-        - Consider fewer agents for complex tasks
+        - **Switch to qwen-3-32b** as main model for 2x context capacity
+        - **Reduce cycles** (2 instead of 3) to halve context accumulation
+        - **Fewer agents** (2 instead of 3+) to reduce per-cycle growth
+        - **Shorter prompts** to minimize baseline usage
         """)
+        
+        # Show optimization suggestions if needed
+        if usage_pct > 60:
+            suggestions = suggest_optimizations(st.session_state.ai_config, generation_prompt)
+            if suggestions:
+                st.markdown("**🔧 Recommended Fixes:**")
+                for suggestion in suggestions:
+                    st.markdown(f"- {suggestion}")
         
         # Configuration summary
         st.markdown("#### 📊 Current Configuration Summary")
@@ -832,7 +1090,7 @@ Responses from models:
                 if st.button("🚀 Submit Solution", type="primary", use_container_width=True):
                     with st.spinner("📊 Analyzing your solution..."):
                         try:
-                            submit_generated_solution(st.session_state.last_config_name, st.session_state.generated_code)
+                            submit_generated_solution("AI_Solution", st.session_state.generated_code)
                         except Exception as e:
                             st.error(f"❌ Submission failed: {str(e)}")
         else:
@@ -851,28 +1109,75 @@ def generate_code_with_ai(ai_config, user_prompt):
         # Generate a unique ID for this generation
         generation_id = str(uuid.uuid4())[:8]
         
+        # Check context safety first
+        is_safe, safety_message = check_context_safety(ai_config, user_prompt)
+        if not is_safe:
+            st.error(f"❌ Context overflow prevented: {safety_message}")
+            return None
+        
+        # Calculate dynamic max_tokens based on context usage and model limits
+        usage = calculate_total_context_usage(ai_config, user_prompt)
+        main_model_limit = get_model_limit(ai_config['main_model'])
+        
+        # Reserve tokens for context, leave remainder for generation
+        # Use very conservative estimate: reserve much more than estimated usage
+        context_safety_buffer = int(usage['total_estimated'] * 1.5)  # 50% safety buffer
+        available_for_generation = main_model_limit - context_safety_buffer
+        
+        # Set completion limits very conservatively
+        # Give qwen-3-32b more room since it's a reasoning model that needs space to think
+        if ai_config['main_model'] == 'qwen-3-32b':
+            max_generation_tokens = max(256, min(1024, available_for_generation))  # More space for qwen reasoning
+        else:
+            max_generation_tokens = max(128, min(512, available_for_generation))  # Conservative for llama models
+        
+        # Emergency fallback: if still too high, force very small completion
+        if context_safety_buffer + max_generation_tokens > main_model_limit:
+            max_generation_tokens = max(64, main_model_limit - usage['total_estimated'] - 200)  # Emergency 200 token buffer
+        
+        print(f"🎲 Generation ID: {generation_id}")
+        print(f"📊 Context usage: {usage['total_estimated']} tokens (estimated)")
+        print(f"🎯 Model limit: {main_model_limit} tokens")
+        print(f"💾 Context buffer: {context_safety_buffer} tokens (150% of estimated)")
+        print(f"✏️ Max completion tokens: {max_generation_tokens} tokens")
+        
+        # Validate that we're within bounds
+        total_budget = usage['total_estimated'] + max_generation_tokens
+        if total_budget > main_model_limit:
+            print(f"⚠️ Still over budget: {total_budget} > {main_model_limit}, forcing minimal completion")
+            max_generation_tokens = 64  # Force very small completion as last resort
+        
         # Add some randomization to the temperature
         base_temp = ai_config['main_temperature']
         randomized_temp = max(0.0, min(1.0, base_temp + random.uniform(-0.05, 0.05)))
         
-        print(f"🎲 Generation ID: {generation_id}")
         print(f"🌡️ Randomized temperature: {randomized_temp}")
         
-        # Create MOA agent with user configuration
+        # Create MOA agent with user configuration and dynamic limits
         layer_agent_config = {}
         for agent in ai_config['layer_agents']:
+            # Calculate max_tokens for each agent based on their model - be very conservative
+            agent_limit = get_model_limit(agent['model'])
+            agent_context_estimate = usage['user_tokens'] + estimate_tokens(agent['prompt']) + (usage['accumulated_context'] // 4)
+            agent_context_buffer = int(agent_context_estimate * 1.5)  # 50% buffer
+            agent_max_tokens = max(128, min(512, agent_limit - agent_context_buffer))  # Very conservative limits
+            
             layer_agent_config[agent['name']] = {
                 'system_prompt': agent['prompt'],
                 'model_name': agent['model'],
-                'temperature': agent['temperature']
+                'temperature': agent['temperature'],
+                'max_tokens': agent_max_tokens  # Conservative limit per agent
             }
+            
+            print(f"🤖 Agent {agent['name']} ({agent['model']}): max_tokens={agent_max_tokens}")
         
-        # Use the MOAgent.from_config properly
+        # Use the MOAgent.from_config properly with dynamic limits
         moa_agent = MOAgent.from_config(
             main_model=ai_config['main_model'],
             system_prompt=ai_config['system_prompt'],
             cycles=ai_config['cycles'],
             temperature=randomized_temp,  # Use randomized temperature
+            max_tokens=max_generation_tokens,  # Conservative limit for main model
             layer_agent_config=layer_agent_config if layer_agent_config else None
         )
         
@@ -882,7 +1187,11 @@ def generate_code_with_ai(ai_config, user_prompt):
         else:
             final_prompt = user_prompt
         
-        print(f"🔮 Generating with {ai_config['main_model']} (temp: {randomized_temp})")
+        # If qwen-3-32b is the main model, append /no_think to disable reasoning
+        if ai_config['main_model'] == 'qwen-3-32b':
+            final_prompt = final_prompt + "\n\n/no_think"
+        
+        print(f"🔮 Generating with {ai_config['main_model']} (temp: {randomized_temp}, max_tokens: {max_generation_tokens})")
         print(f"📝 User prompt: {final_prompt[:100]}...")
         
         # Generate the response using the user's actual prompt
@@ -1001,7 +1310,7 @@ def submit_generated_solution(config_name: str, generated_code: str):
             if "error" not in analysis_result:
                 total_score = analysis_result['total_score']
                 max_score = analysis_result.get('max_score', 120)
-                st.success(f"🎉 Configuration '{config_name}' scored: **{total_score}/{max_score} points**!")
+                st.success(f"🎉 Solution scored: **{total_score}/{max_score} points**!")
             else:
                 st.error("Analysis failed. Please try again.")
         else:
@@ -1310,24 +1619,18 @@ def import_config_from_json(config_json):
             }
             processed_agents.append(processed_agent)
         
-        # Clear ALL potentially conflicting widget states to prevent type mismatches
-        keys_to_clear = [
-            # Main config widgets
-            'main_model', 'main_temp', 'cycles', 'main_system_prompt',
-            'config_name', 'config_uploader', 'add_layer_agent'
-        ]
+        # Clear potentially conflicting widget states more selectively
+        keys_to_clear = []
         
-        # Layer agent widgets (clear up to 20 potential agents)
-        for i in range(20):
-            keys_to_clear.extend([
-                f'agent_name_{i}', f'agent_model_{i}', 
-                f'agent_temp_{i}', f'agent_prompt_{i}',
-                f'remove_agent_{i}'
-            ])
+        # Only clear keys that might conflict with imported values
+        for key in list(st.session_state.keys()):
+            if (key.startswith('agent_') or 
+                key in ['main_model', 'main_temp', 'cycles', 'main_system_prompt']):
+                keys_to_clear.append(key)
         
-        # Clear all widget states safely
+        # Clear the identified keys
         for key in keys_to_clear:
-            st.session_state.pop(key, None)
+            del st.session_state[key]
         
         # Now assign the clean configuration
         st.session_state.ai_config = {
