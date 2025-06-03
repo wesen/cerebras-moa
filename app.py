@@ -13,20 +13,24 @@ from moa.agent.moa import ResponseChunk, MOAgentConfig
 from moa.agent.prompts import SYSTEM_PROMPT, REFERENCE_SYSTEM_PROMPT
 
 # Import competition system
+import sys
+from pathlib import Path
+
+# Add the current directory to Python path for imports
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
+
 try:
     from competition_ui import render_competition_page
     COMPETITION_AVAILABLE = True
-    print("Competition system imported successfully")
 except ImportError as e:
     COMPETITION_AVAILABLE = False
-    print(f"Competition system import failed: {e}")
-except Exception as e:
-    COMPETITION_AVAILABLE = False
-    print(f"Competition system import error: {e}")
+    st.error(f"Failed to import competition system: {e}")
+    st.stop()
 
 # App configuration - must be first
 st.set_page_config(
-    page_title="Mixture-Of-Agents Powered by Cerebras",
+    page_title="Mixture-Of-Agents & AI Challenge",
     page_icon='static/favicon.ico',
     menu_items={
         'About': "## Cerebras Mixture-Of-Agents \n Powered by [Cerebras](https://cerebras.net)"
@@ -499,14 +503,14 @@ def main():
     if COMPETITION_AVAILABLE:
         page = st.sidebar.selectbox(
             "Choose a page",
-            ["MOA Chat", "Code Competition"],
+            ["MOA Chat", "AI Configuration Challenge"],
             index=0
         )
     else:
         page = "MOA Chat"
         st.sidebar.info("Competition system not available")
 
-    if page == "Code Competition" and COMPETITION_AVAILABLE:
+    if page == "AI Configuration Challenge" and COMPETITION_AVAILABLE:
         render_competition_page()
     else:
         render_moa_chat_page()

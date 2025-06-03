@@ -1,0 +1,30 @@
+{
+  "ai_configuration": {
+    "main_model": "llama-3.3-70b",
+    "main_temperature": 0.2,
+    "cycles": 4,
+    "system_prompt": "You are a debugging expert. Fix all bugs while maintaining code structure. Focus on: division by zero, missing keys, wrong calculations, sorting issues, edge cases. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "bug_hunter",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.1,
+        "prompt": "Hunt down critical bugs: division by zero, KeyError, wrong denominators. Be thorough and systematic. {helper_response}"
+      },
+      {
+        "name": "edge_case_specialist",
+        "model": "qwen-3-32b",
+        "temperature": 0.3,
+        "prompt": "Focus on edge cases: empty inputs, missing keys, boundary conditions, invalid data. {helper_response}"
+      },
+      {
+        "name": "performance_optimizer",
+        "model": "llama3.1-8b",
+        "temperature": 0.1,
+        "prompt": "Optimize for performance and correct sorting. Use efficient algorithms and proper validation. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-01-02 17:00:00",
+  "version": "2.0"
+} 
