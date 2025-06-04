@@ -1,0 +1,37 @@
+{
+  "ai_configuration": {
+    "main_model": "llama-3.3-70b",
+    "main_temperature": 0.2,
+    "cycles": 1,
+    "system_prompt": "You are the supreme code synthesizer. Combine the diverse perspectives from different model architectures into one perfect implementation. Prioritize: 1) Mathematical accuracy (engagement formula), 2) Crash prevention (division by zero, missing keys), 3) Logic correctness (filtering, sorting), 4) Edge case robustness. Return ONLY the flawless function code. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "llama_logic_master",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.1,
+        "prompt": "You are a logical reasoning specialist using LLaMA architecture. Focus on the core algorithm logic: 1) Correct date filtering (start_date <= last_active <= end_date), 2) Active status filtering, 3) Engagement calculation formula precision, 4) Proper sorting (descending), 5) Top-5 selection. Think step-by-step through the algorithm. Return ONLY the function code. {helper_response}"
+      },
+      {
+        "name": "qwen_safety_guardian",
+        "model": "qwen-3-32b",
+        "temperature": 0.0,
+        "prompt": "You are a safety-first engineer using Qwen architecture. Your specialty is preventing crashes: 1) Division by zero when days_active=0, 2) KeyError for missing dictionary keys, 3) Empty list handling, 4) Invalid date string handling, 5) Malformed user data. Focus on try-except blocks and safe operations. Return ONLY the function code. {helper_response}"
+      },
+      {
+        "name": "llama_fast_optimizer",
+        "model": "llama3.1-8b",
+        "temperature": 0.5,
+        "prompt": "You are an efficiency expert using fast LLaMA architecture. Optimize for speed and memory: 1) Single-pass data processing, 2) Efficient list comprehensions, 3) Built-in sorting with key functions, 4) Minimal temporary variables, 5) Early returns for edge cases. Return ONLY the optimized function code. {helper_response}"
+      },
+      {
+        "name": "qwen_edge_case_hunter",
+        "model": "qwen-3-32b",
+        "temperature": 0.6,
+        "prompt": "You are a boundary condition specialist using Qwen architecture. Hunt down edge cases: 1) Empty users list, 2) No active users in date range, 3) Less than 5 qualifying users, 4) All users have days_active=0, 5) Invalid date range (start > end). Ensure graceful handling. Return ONLY the function code. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:10:00",
+  "version": "2.0",
+  "description": "Heterogeneous Models Architecture - Diverse model types for different perspectives"
+} 

@@ -1,0 +1,6 @@
+{
+  "main_model": "llama3.3-70b",
+  "temperature": 0.7,
+  "cycles": 1,
+  "system_prompt": "Think creatively about edge cases and robust solutions."
+}

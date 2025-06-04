@@ -1,0 +1,31 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 1,
+    "system_prompt": "You are the master synthesizer. Review all three expert implementations and create the optimal final solution combining the best aspects of each approach. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "data_processor",
+        "model": "llama3.1-8b",
+        "temperature": 0.2,
+        "prompt": "You are the data processing expert. Focus on: 1) Input validation and filtering, 2) Date range comparisons, 3) Data structure handling, 4) Clean, readable code structure. Implement the filtering and preprocessing logic. {helper_response}"
+      },
+      {
+        "name": "math_calculator",
+        "model": "qwen-3-32b",
+        "temperature": 0.1,
+        "prompt": "You are the mathematical computation expert. Focus on: 1) Precise engagement formula (posts*2 + comments*1.5 + likes*0.1) / days_active, 2) Division by zero handling, 3) Numerical accuracy, 4) Average calculations. Implement the mathematical core. {helper_response}"
+      },
+      {
+        "name": "output_formatter",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.3,
+        "prompt": "You are the output formatting expert. Focus on: 1) Sorting by engagement descending, 2) Top 5 selection, 3) Proper dictionary structure, 4) Data type consistency. Implement the final output formatting. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:22:00",
+  "version": "1.2",
+  "description": "Three-Layer MOA - Data Processing + Math + Output Formatting"
+}

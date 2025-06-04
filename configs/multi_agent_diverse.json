@@ -1,0 +1,22 @@
+{
+  "main_model": "llama3.3-70b",
+  "temperature": 0.2,
+  "cycles": 2,
+  "layer_agent_config": {
+    "planner": {
+      "system_prompt": "Plan the solution step by step. {helper_response}",
+      "model_name": "llama3.1-8b",
+      "temperature": 0.3
+    },
+    "critic": {
+      "system_prompt": "Find potential bugs and edge cases. {helper_response}",
+      "model_name": "llama-4-scout-17b-16e-instruct",
+      "temperature": 0.1
+    },
+    "optimizer": {
+      "system_prompt": "Optimize for performance and robustness. {helper_response}",
+      "model_name": "qwen-3-32b",
+      "temperature": 0.2
+    }
+  }
+}

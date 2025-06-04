@@ -1,0 +1,29 @@
+{
+  "ai_configuration": {
+    "main_model": "qwen-3-32b",
+    "main_temperature": 0.5,
+    "cycles": 3,
+    "system_prompt": "Orchestrate three specialised passes. After each cycle, feed the latest code as {helper_response}. Ensure the final output is a single function.",
+    "layer_agents": [
+      {
+        "name": "BugFinder",
+        "model": "qwen-3-32b",
+        "temperature": 0.55,
+        "prompt": "Identify and fix critical bugs: division-by-zero, missing keys, wrong math, date filtering mistakes. Return the updated function. {helper_response}"
+      },
+      {
+        "name": "EdgeCaseHandler",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.4,
+        "prompt": "Harden the function for edge cases: <5 users, empty date range, malformed records, mutated inputs. Return the function only. {helper_response}"
+      },
+      {
+        "name": "Optimiser",
+        "model": "llama-3.3-70b",
+        "temperature": 0.2,
+        "prompt": "Streamline for O(n) time, avoid unnecessary copies, keep clarity. Output the final, fully-optimised function code. {helper_response}"
+      }
+    ]
+  }
+}
+

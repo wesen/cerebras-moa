@@ -1,0 +1,25 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.3-70b",
+    "main_temperature": 0.4,
+    "cycles": 1,
+    "system_prompt": "You are the creative problem solver. Think outside the box to create an innovative, robust solution that anticipates and handles edge cases creatively. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "creative_architect",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.6,
+        "prompt": "You are the creative architect. Design calculate_user_metrics with innovative approaches: 1) Creative error handling strategies, 2) Elegant formula implementation, 3) Unusual but robust edge case handling, 4) Creative data validation. Think creatively about the solution. {helper_response}"
+      },
+      {
+        "name": "edge_case_hunter",
+        "model": "qwen-3-32b",
+        "temperature": 0.5,
+        "prompt": "You are the edge case hunter. Find and handle ALL possible edge cases: 1) Weird date formats, 2) Negative numbers, 3) String data in numeric fields, 4) Missing users entirely, 5) Malformed input structures. Be creative in your solutions. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:23:00",
+  "version": "1.3",
+  "description": "High Creativity Architecture - Creative problem solving approach"
+}

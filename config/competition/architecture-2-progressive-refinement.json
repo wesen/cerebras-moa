@@ -1,0 +1,31 @@
+{
+  "ai_configuration": {
+    "main_model": "llama-3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 3,
+    "system_prompt": "You are the final code architect. Take the progressive refinements from multiple expert layers and create the ultimate, bug-free implementation. Ensure: 1) Perfect engagement formula, 2) Zero crashes, 3) Optimal performance, 4) All edge cases handled. Return ONLY the final function code. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "requirements_analyst",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.2,
+        "prompt": "You are a requirements analysis expert. Break down the calculate_user_metrics function requirements: 1) Filter users by date range AND active status, 2) Calculate engagement = (posts*2 + comments*1.5 + likes*0.1) / days_active, 3) Handle days_active=0, 4) Return top 5 sorted by engagement DESC, 5) Calculate average of ACTIVE users only. Return ONLY the function code focusing on correct logic flow. {helper_response}"
+      },
+      {
+        "name": "safety_engineer",
+        "model": "qwen-3-32b",
+        "temperature": 0.0,
+        "prompt": "You are a defensive programming specialist. Make the code bulletproof: 1) Try-except blocks for missing keys, 2) Safe division (check days_active > 0), 3) Input validation, 4) Graceful error handling, 5) Default values for missing data. Return ONLY the function code with maximum safety. {helper_response}"
+      },
+      {
+        "name": "performance_optimizer",
+        "model": "llama3.1-8b",
+        "temperature": 0.3,
+        "prompt": "You are an algorithmic efficiency expert. Optimize for performance: 1) Single-pass filtering, 2) Efficient sorting (use key parameter), 3) List comprehensions where appropriate, 4) Minimal memory usage, 5) O(n log n) complexity maximum. Return ONLY the function code with optimal algorithms. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:05:00",
+  "version": "2.0",
+  "description": "Progressive Refinement Architecture - Multiple cycles with specialized roles"
+} 

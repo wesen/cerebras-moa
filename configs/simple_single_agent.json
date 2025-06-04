@@ -1,0 +1,7 @@
+{
+  "main_model": "llama3.3-70b",
+  "temperature": 0.1,
+  "cycles": 1,
+  "system_prompt": "You are an expert Python programmer. Write clean, robust code.",
+  "layer_agent_config": {}
+}

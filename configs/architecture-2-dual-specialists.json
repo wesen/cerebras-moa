@@ -1,0 +1,25 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 1,
+    "system_prompt": "You are the final code synthesizer. Combine the algorithm implementation with robust error handling to create the perfect solution. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "algorithm_designer",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.1,
+        "prompt": "You are the algorithm designer. Implement calculate_user_metrics with core logic: 1) Date filtering (start_date <= last_login <= end_date), 2) Engagement calculation (posts*2 + comments*1.5 + likes*0.1) / days_active, 3) Sort by engagement descending, 4) Return top 5. Focus on correctness. {helper_response}"
+      },
+      {
+        "name": "error_handler",
+        "model": "qwen-3-32b",
+        "temperature": 0.0,
+        "prompt": "You are the error handling specialist. Add bulletproof error handling: 1) Try/except blocks, 2) Missing key protection with .get(), 3) Division by zero prevention, 4) Empty list handling, 5) Type validation. Make it crash-proof. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:21:00",
+  "version": "1.1",
+  "description": "Dual Specialist Architecture - Algorithm + Error Handling"
+}

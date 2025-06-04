@@ -1,0 +1,19 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 1,
+    "system_prompt": "You are an expert Python developer. Create a robust, production-ready implementation that handles all edge cases. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "python_expert",
+        "model": "llama3.3-70b",
+        "temperature": 0.1,
+        "prompt": "You are a Python expert. Implement calculate_user_metrics with perfect accuracy: 1) Filter users by date range, 2) Use formula (posts*2 + comments*1.5 + likes*0.1) / days_active, 3) Handle division by zero, 4) Return top 5 performers, 5) Calculate correct averages. Return ONLY the function code. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:20:00",
+  "version": "1.0",
+  "description": "Single Expert Architecture - Direct implementation by top model"
+}

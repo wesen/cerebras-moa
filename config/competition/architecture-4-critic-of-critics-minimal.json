@@ -1,0 +1,37 @@
+{
+  "ai_configuration": {
+    "main_model": "llama-3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 2,
+    "system_prompt": "Review all expert analyses and produce the final implementation. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "algorithm_architect",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.1,
+        "prompt": "Implement calculate_user_metrics function. {helper_response}"
+      },
+      {
+        "name": "robustness_engineer",
+        "model": "qwen-3-32b",
+        "temperature": 0.0,
+        "prompt": "Add error handling and edge case protection. {helper_response}"
+      },
+      {
+        "name": "performance_tuner",
+        "model": "llama3.1-8b",
+        "temperature": 0.4,
+        "prompt": "Optimize for performance and efficiency. {helper_response}"
+      },
+      {
+        "name": "safety_critic",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.7,
+        "prompt": "Review and fix any issues in the implementation. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:15:00",
+  "version": "2.0",
+  "description": "Minimal Critic-of-Critics Architecture"
+} 

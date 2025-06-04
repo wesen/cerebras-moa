@@ -1,0 +1,24 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.1-8b",
+    "main_temperature": 0.7,
+    "cycles": 3,
+    "system_prompt": "You are a performance-focused Python expert. Create efficient, optimized code that handles all edge cases. Prioritize: 1) Algorithmic efficiency, 2) Memory optimization, 3) Robust error handling, 4) Clean, maintainable code. Return ONLY the function code without explanations or thinking process. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "assistant",
+        "model": "llama3.1-8b",
+        "temperature": 0.5,
+        "prompt": "You are an expert Python programmer specialized in bug detection and fixing. Analyze the requirements carefully and implement a robust solution. Focus on: 1) Division by zero errors, 2) Missing key handling, 3) Wrong calculations, 4) Sorting issues, 5) Edge cases. Return ONLY the function code without explanations or thinking process. {helper_response}"
+      },
+      {
+        "name": "assistant Copy",
+        "model": "llama3.1-8b",
+        "temperature": 0.5,
+        "prompt": "Help with the coding task. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 13:32:30",
+  "version": "2.0"
+}

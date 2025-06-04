@@ -1,0 +1,37 @@
+{
+  "ai_configuration": {
+    "main_model": "llama-3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 2,
+    "system_prompt": "You are the final code validator and synthesizer. Review all expert analyses and the safety critic's feedback to produce the ultimate, bulletproof implementation. Ensure: 1) Zero runtime errors, 2) Perfect mathematical accuracy, 3) Complete edge case coverage, 4) Optimal performance. Return ONLY the final, production-ready function code. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "algorithm_architect",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.1,
+        "prompt": "You are the primary algorithm designer. Implement calculate_user_metrics with focus on: 1) Correct filtering (date range + active status), 2) Precise engagement formula: (posts*2 + comments*1.5 + likes*0.1) / days_active, 3) Proper sorting (descending by engagement), 4) Top 5 selection, 5) Average calculation (active users only). Return ONLY the core function implementation. {helper_response}"
+      },
+      {
+        "name": "robustness_engineer",
+        "model": "qwen-3-32b",
+        "temperature": 0.0,
+        "prompt": "You are the robustness specialist. Harden the algorithm against all failure modes: 1) Division by zero protection, 2) Missing key handling (.get() with defaults), 3) Empty data structures, 4) Invalid inputs, 5) Type errors. Add comprehensive error handling. Return ONLY the hardened function code. {helper_response}"
+      },
+      {
+        "name": "performance_tuner",
+        "model": "llama3.1-8b",
+        "temperature": 0.4,
+        "prompt": "You are the performance optimization expert. Make it fast and efficient: 1) Single-pass filtering with list comprehension, 2) Efficient sorting with lambda key, 3) Early termination for edge cases, 4) Minimal memory allocation, 5) O(n log n) time complexity. Return ONLY the optimized function code. {helper_response}"
+      },
+      {
+        "name": "safety_critic",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.7,
+        "prompt": "You are the safety critic and code reviewer. Your job is to find flaws in the proposed implementations and suggest critical fixes: 1) Identify potential crashes, 2) Spot calculation errors, 3) Find missing edge cases, 4) Detect logic bugs, 5) Verify formula correctness. Provide specific feedback on what MUST be fixed for a perfect score. Return ONLY the function code with all critical issues resolved. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:15:00",
+  "version": "2.0",
+  "description": "Critic-of-Critics Architecture - Safety pass with expert review and validation"
+} 

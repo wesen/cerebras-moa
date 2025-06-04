@@ -1,0 +1,23 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.1-8b",
+    "main_temperature": 0.8,
+    "cycles": 2,
+    "system_prompt": "Cycle 1: explore diverse implementations. Cycle 2: converge on the safest variant. Provide ONLY the finished function at the end.",
+    "layer_agents": [
+      {
+        "name": "HotPass",
+        "model": "llama3.1-8b",
+        "temperature": 0.8,
+        "prompt": "Generate two distinct implementations inside one code block. Cover every scoring requirement. {helper_response}"
+      },
+      {
+        "name": "ColdPass",
+        "model": "llama-3.3-70b",
+        "temperature": 0.1,
+        "prompt": "Compare the two versions above, pick the superior one, fix any residual issues, and output the single best function. {helper_response}"
+      }
+    ]
+  }
+}
+

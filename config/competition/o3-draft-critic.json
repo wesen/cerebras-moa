@@ -1,0 +1,23 @@
+{
+  "ai_configuration": {
+    "main_model": "llama3.1-8b",
+    "main_temperature": 0.65,
+    "cycles": 2,
+    "system_prompt": "Act as the orchestrator. In cycle 1, generate a complete solution. In cycle 2, scrutinise and improve it. Pass the previous output to the next agent as {helper_response}.",
+    "layer_agents": [
+      {
+        "name": "DraftAgent",
+        "model": "llama3.1-8b",
+        "temperature": 0.6,
+        "prompt": "You are a creative Python developer. Produce a first-pass `calculate_user_metrics` that meets every scoring item. Return ONLY the function code. {helper_response}"
+      },
+      {
+        "name": "CriticAgent",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.1,
+        "prompt": "You are a no-nonsense code reviewer. Inspect the function above for logical, edge-case, and performance issues, then output a corrected, final version—function code only. {helper_response}"
+      }
+    ]
+  }
+}
+

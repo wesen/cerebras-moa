@@ -1,0 +1,37 @@
+{
+  "ai_configuration": {
+    "main_model": "llama-3.3-70b",
+    "main_temperature": 0.1,
+    "cycles": 2,
+    "system_prompt": "You are a master Python architect. Synthesize the insights from specialized debugging agents to create flawless, production-ready code. Focus on: 1) Zero division safety, 2) Robust error handling, 3) Correct calculations, 4) Efficient algorithms. Return ONLY the complete function implementation. {helper_response}",
+    "layer_agents": [
+      {
+        "name": "division_safety_expert",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.0,
+        "prompt": "You are a division-by-zero prevention specialist. Your ONLY job is to identify and fix division by zero errors in Python code. Focus on: 1) days_active = 0 scenarios, 2) Safe division patterns, 3) Default value handling. Analyze the engagement formula: (posts * 2 + comments * 1.5 + likes * 0.1) / days_active. Return ONLY the function code with bulletproof division safety. {helper_response}"
+      },
+      {
+        "name": "key_error_guardian",
+        "model": "llama3.1-8b",
+        "temperature": 0.0,
+        "prompt": "You are a dictionary key error prevention expert. Your mission: eliminate all KeyError exceptions. Focus on: 1) Missing 'posts', 'comments', 'likes', 'days_active' keys, 2) Safe dictionary access patterns (.get() method), 3) Default value strategies. Return ONLY the function code with complete key safety. {helper_response}"
+      },
+      {
+        "name": "calculation_validator",
+        "model": "qwen-3-32b",
+        "temperature": 0.1,
+        "prompt": "You are a mathematical calculation auditor. Verify the exact engagement formula: (posts * 2 + comments * 1.5 + likes * 0.1) / days_active. Focus on: 1) Correct multiplication factors, 2) Proper parentheses, 3) Division placement, 4) Average calculation (active users only). Return ONLY the function code with perfect math. {helper_response}"
+      },
+      {
+        "name": "edge_case_specialist",
+        "model": "llama-4-scout-17b-16e-instruct",
+        "temperature": 0.4,
+        "prompt": "You are an edge case detection expert. Handle all boundary conditions: 1) Empty user lists, 2) No users in date range, 3) Less than 5 users available, 4) Invalid date formats, 5) Malformed data. Focus on graceful degradation and proper error responses. Return ONLY the function code with comprehensive edge case handling. {helper_response}"
+      }
+    ]
+  },
+  "exported_at": "2025-06-03 14:00:00",
+  "version": "2.0",
+  "description": "Bug Hunter Architecture - Specialized agents for different error types"
+} 
